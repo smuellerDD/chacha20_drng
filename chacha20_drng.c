@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/mman.h>
 
 #include "chacha20_drng.h"
 
@@ -416,6 +417,10 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 		       ret);
 		return -ret;
 	}
+
+	/* prevent paging out of the memory state to swap space */
+	mlock(drng, sizeof(*drng));
+
 	memset(drng, 0, sizeof(*drng));
 
 	memcpy(&drng->chacha20.constants[0], "expand 32-byte k", 16);
