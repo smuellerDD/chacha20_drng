@@ -467,6 +467,7 @@ int drng_chacha20_init(struct chacha20_drng **drng)
 
 	chacha20 = &d->chacha20;
 	ret = drng_chacha20_seed(chacha20, seed, sizeof(seed));
+	memset_secure(seed, 0, sizeof(seed));
 	if (ret)
 		goto deallocsource;
 
@@ -501,6 +502,7 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 	}
 
 	ret = drng_chacha20_seed(&drng->chacha20, seed, sizeof(seed));
+	memset_secure(seed, 0, sizeof(seed));
 	if (ret)
 		return ret;
 
