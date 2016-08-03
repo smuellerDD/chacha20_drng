@@ -117,6 +117,32 @@ static int basic_test(void)
 
 	bin2print(buf, sizeof(buf), "Random number after reseed");
 
+	drng_chacha20_destroy(drng);
+
+	return 0;
+}
+
+static int gen_test(void)
+{
+	struct chacha20_drng *drng;
+
+	if (drng_chacha20_init(&drng)) {
+		printf("Allocation failed\n");
+		return 1;
+	}
+
+	while(1) {
+		uint8_t tmp[32];
+
+		if (drng_chacha20_get(drng, tmp, sizeof(tmp))) {
+			printf("Getting random numbers failed\n");
+			return 1;
+		}
+		fwrite(&tmp, sizeof(tmp), 1, stdout);
+	}
+
+	drng_chacha20_destroy(drng);
+
 	return 0;
 }
 
@@ -125,9 +151,13 @@ int main(int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 
-	if (basic_test()) {
-		printf("Basic test failed\n");
-		return 1;
+	if (argc == 1) {
+		if (basic_test()) {
+			printf("Basic test failed\n");
+			return 1;
+		}
+	} else {
+		gen_test();
 	}
 
 	printf("All tests passed\n");
