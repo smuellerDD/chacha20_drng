@@ -68,22 +68,16 @@ static inline void memset_secure(void *s, int c, uint32_t n)
 	__asm__ __volatile__("" : : "r" (s) : "memory");
 }
 
-static inline void get_nstime(uint32_t *out)
+static inline void get_time(time_t *sec, uint32_t *nsec)
 {
 	struct timespec time;
 
-	if (clock_gettime(CLOCK_REALTIME, &time) == 0)
-		*out = time.tv_nsec;
-}
-
-static inline time_t get_seconds(void)
-{
-	struct timespec time;
-
-	if (clock_gettime(CLOCK_REALTIME, &time) == 0)
-		return time.tv_sec;
-
-	return 0;
+	if (clock_gettime(CLOCK_REALTIME, &time) == 0) {
+		if (sec)
+			*sec = time.tv_sec;
+		if (nsec)
+			*nsec = time.tv_nsec;
+	}
 }
 
 static inline uint32_t rol32(uint32_t x, int n)
@@ -424,11 +418,11 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 	memset(drng, 0, sizeof(*drng));
 
 	memcpy(&drng->chacha20.constants[0], "expand 32-byte k", 16);
-	get_nstime(&v);
+	get_time(NULL, &v);
 	drng->chacha20.nonce[0] ^= v;
-	get_nstime(&v);
+	get_time(NULL, &v);
 	drng->chacha20.nonce[1] ^= v;
-	get_nstime(&v);
+	get_time(NULL, &v);
 	drng->chacha20.nonce[2] ^= v;
 
 	*out = drng;
@@ -471,7 +465,7 @@ int drng_chacha20_init(struct chacha20_drng **drng)
 	if (ret)
 		goto deallocsource;
 
-	d->last_seeded = get_seconds();
+	 get_time(&d->last_seeded, NULL);
 
 	return 0;
 
@@ -509,7 +503,7 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 	if (inbuf && inbuflen)
 		ret = drng_chacha20_seed(&drng->chacha20, inbuf, inbuflen);
 
-	drng->last_seeded = get_seconds();
+	get_time(&drng->last_seeded, NULL);
 	drng->generated_bytes = 0;
 
 	return ret;
@@ -518,8 +512,11 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 		      uint32_t outbuflen)
 {
-	time_t now = get_seconds();
+	time_t now;
+	uint32_t nsec;
 	int ret;
+
+	get_time(&now, &nsec);
 
 	/*
 	 * Reseed if:
@@ -527,13 +524,19 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 	 *	* more than 4096 bytes were generated since last reseed
 	 */
 	if (((now - drng->last_seeded) > 600) ||
-	    (drng->generated_bytes > 4096)) {
-		int ret = drng_chacha20_reseed(drng, NULL, 0);
+	    (drng->generated_bytes > (1<<30))) {
+		int ret = drng_chacha20_reseed(drng, (uint8_t *)&nsec,
+					       sizeof(nsec));
 
 		if (ret)
 			return ret;
 		drng->last_seeded = now;
 		drng->generated_bytes = 0;
+	} else {
+		ret = drng_chacha20_seed(&drng->chacha20, (uint8_t *)&nsec,
+					 sizeof(nsec));
+		if (ret)
+			return ret;
 	}
 
 	ret = drng_chacha20_generate(&drng->chacha20, outbuf, outbuflen);
