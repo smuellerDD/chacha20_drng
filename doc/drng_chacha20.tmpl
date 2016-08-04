@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+	"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" []>
+
+<book id="ChaCha20 DRNG" revision="@@LIBVERSION@@">
+ <bookinfo>
+  <title>Continuously Seeded ChaCha20 DRNG</title>
+
+  <edition>@@LIBVERSION@@</edition>
+
+  <authorgroup>
+   <author>
+    <firstname>Stephan</firstname>
+    <surname>Mueller</surname>
+    <affiliation>
+     <address>
+      <email>smueller@chronox.de</email>
+     </address>
+    </affiliation>
+   </author>
+  </authorgroup>
+
+  <copyright>
+   <year>2016</year>
+   <holder>Stephan Mueller</holder>
+  </copyright>
+
+
+  <legalnotice>
+   <para>
+     This documentation is free software; you can redistribute
+     it and/or modify it under the terms of the GNU General Public
+     License as published by the Free Software Foundation; either
+     version 2 of the License, or (at your option) any later
+     version.
+   </para>
+
+   <para>
+     This program is distributed in the hope that it will be
+     useful, but WITHOUT ANY WARRANTY; without even the implied
+     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+     See the GNU General Public License for more details.
+   </para>
+
+   <para>
+     You should have received a copy of the GNU General Public
+     License along with this program; if not, write to the Free
+     Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+     MA 02111-1307 USA
+   </para>
+
+   <para>
+     For more details see the file COPYING in the source
+     distribution of Linux.
+   </para>
+  </legalnotice>
+ </bookinfo>
+
+ <toc></toc>
+
+ <chapter id="Intro">
+  <title>ChaCha20 DRNG</title>
+
+  <para>This documentation applies to version @@LIBVERSION@@.</para>
+
+  <para>
+   The ChaCha20 DRNG is a complete standalone implementation of a
+   deterministic random number generator. It does not need any external
+   cryptographic support.
+  </para>
+
+  <sect1><title>Version Number Schema</title>
+   <para>
+    The version numbers for this library have the following schema:
+    MAJOR.MINOR.PATCHLEVEL
+   </para>
+
+   <para>
+    Changes in the major number implies API and ABI incompatible changes, or
+    functional changes that require consumer to be updated (as long as this
+    number is zero, the API is not considered stable and can change without a
+    bump of the major version).
+   </para>
+
+   <para>
+    Changes in the minor version are API compatible, but the ABI may change.
+    Functional enhancements only are added. Thus, a consumer can be left
+    unchanged if enhancements are not considered. The consumer only needs to
+    be recompiled.
+   </para>
+
+   <para>
+    Patchlevel changes are API / ABI compatible. No functional changes, no
+    enhancements are made. This release is a bug fixe release only. The
+    consumer can be left unchanged and does not need to be recompiled.
+   </para>
+  </sect1>
+
+  <sect1><title>Properties of the ChaCha20 DRNG</title>
+   <para>
+    The ChaCha20 DRNG is implemented using ideas specified in SP800-90A,
+    AIS 20/31 as well as specified by Peter Gutmann's 1998 Usenix Security
+    Symposium paper: "Software Generation of Practically Strong Random Numbers".
+    The following list enumerates the different properties offered with the
+    ChaCha20 DRNG.
+   </para>
+
+   <para>
+    Properties of the ChaCha20 DRNG:
+     <itemizedlist>
+      <listitem>
+       <para>
+        The ChaCha20 DRNG implements an automated seeding from internally
+        defined noise sources. This automated seeding implies that after
+        an initialization call, the DRNG can be requested to generate
+        random numbers. The caller does not need to consider
+        the seeding strategy or provide seed data. However, if the caller
+        wants to provide seed data, he can surely do that. The automated
+        seeding is transparent to the caller.
+       </para>
+      </listitem>
+      <listitem>
+       <para>
+        In conjunction with the automated initial seed, the ChaCha20
+        DRNG performs an automated reseeding from the noise sources before
+        the next random number is generated in the following cases: if
+        the last generation is more than 600 seconds ago or more than
+        1&gt;&gt;30 bytes have been generated. The automated reseeding is
+        transparent to the caller.
+       </para>
+      </listitem>
+      <listitem>
+       <para>
+        The ChaCha20 DRNG implements a continuous reseed using a high-resolution
+        time stamp which is injected into the state before a new random
+        number is generated.
+       </para>
+      </listitem>
+      <listitem>
+       <para>
+	The ChaCha20 DRNG implements enhanced backward secrecy with an
+	update function. That update function re-creates the complete
+	ChaCha20 state by generating one ChaCha20 block which is XORed with
+	the previous state. This update function is invoked after each
+	generation round of random numbers as well as when new seed is
+	injected into the DRNG. This ensures that even when the internal
+	state becomes known, any previously generated random numbers
+	cannot be deduced from the state any more.
+       </para>
+      </listitem>
+     </itemizedlist>
+   </para>
+
+  </sect1>
+
+  <sect1><title>Seed Sources</title>
+   <para>
+    The ChaCha20 DRNG implements the following seed sources which are
+    activated during compile time. The noise sources are mutually exclusively
+    activated by changing the Makefile - see the Makefile comments
+    for the required changes.
+   </para>
+
+   <para>
+    The following seed sources are implemented:
+     <itemizedlist>
+      <listitem>
+       <para>
+        Use of the getrandom(2) system call.
+       </para>
+      </listitem>
+      <listitem>
+       <para>
+        Use of the CPU Execution Time Jitter RNG as available at
+        http://www.chronox.de/jent.html. The files jitterentropy-base.c,
+        jitterentropy-base-user.h, and jitterentropy.h simply need to
+        be copied into the root directory of the ChaCha20 DRNG code base.
+        The Makefile will compile them together with the DRNG code to form
+        a binary that is completely stand-alone without needing any
+        external support functions.
+       </para>
+      </listitem>
+      <listitem>
+       <para>
+        Use of /dev/random.
+       </para>
+      </listitem>
+     </itemizedlist>
+   </para>
+  </sect1>
+ </chapter>
+
+ <chapter id="Usage"><title>Programming Guidelines</title>
+  <para>
+   A consumer has to use the chacha20_drng.h header file to link with the
+   ChaCha20 DRNG library. The linking has to be performed using -lchacha20_drng.
+  </para>
+
+  <para>
+   In case a consumer does not want a shared library, the ChaCha20 DRNG C file
+   and header file can also just copied to the consumer code and compiled along
+   with it.
+  </para>
+ </chapter>
+
+ <chapter id="API"><title>Programming Interface</title>
+  <sect1><title>ChaCha20 DRNG API</title>
+!Pchacha20_drng.h ChaCha20 DRNG API
+!Fchacha20_drng.h drng_chacha20_init
+!Fchacha20_drng.h drng_chacha20_destroy
+!Fchacha20_drng.h drng_chacha20_get
+!Fchacha20_drng.h drng_chacha20_reseed
+   </sect1>
+ </chapter>
+</book>

@@ -46,16 +46,6 @@
 
 #include "chacha20_drng.h"
 
-#define MAJVERSION 0  /* API / ABI incompatible changes, functional changes that
-		       * require consumer to be updated (as long as this number
-		       * is zero, the API is not considered stable and can
-		       * change without a bump of the major version) */
-#define MINVERSION 1  /* API compatible, ABI may change, functional
-		       * enhancements only, consumer can be left unchanged if
-		       * enhancements are not considered */
-#define PATCHLEVEL 0  /* API / ABI compatible, no functional changes, no
-		       * enhancements, bug fixes only */
-
 #define CHACHA20_DRNG_ALIGNMENT	8	/* allow u8 to u32 conversions */
 
 /*********************************** Helper ***********************************/
@@ -221,12 +211,16 @@ static int drng_chacha20_selftest(void)
 	expected[10] = 0x05d7c214; expected[11] = 0xa2028bd9;
 	expected[12] = 0xd19c12b5; expected[13] = 0xb94e16de;
 	expected[14] = 0xe883d0cb; expected[15] = 0x4e3c50a2;
+
 	return drng_chacha20_selftest_one(&chacha20, &expected[0]);
 }
 
 /******************************** Seed Source ********************************/
 
-#ifdef GETRANDOM
+#ifdef GETRANDOM	/* getrandom system call */
+
+#include <limits.h>
+
 struct seed_source {
 #define OVERSAMPLINGRATE 1
 	void *unused;
@@ -244,13 +238,28 @@ static void drng_seedsource_dealloc(struct seed_source *source)
 	return;
 }
 
-static int drng_get_seed(struct seed_source *source, void *buf, size_t buflen)
+static int drng_get_seed(struct seed_source *source, uint8_t *buf,
+			 uint32_t buflen)
 {
+	uint32_t len = 0;
+	ssize_t ret;
+
 	(void)source;
-	return syscall(__NR_getrandom, buf, buflen, 0);
+
+	if (buflen > INT_MAX)
+		return 0;
+
+	do {
+		ret = syscall(__NR_getrandom, buf, buflen, 0);
+		if (0 < ret)
+			len += ret;
+	} while ((0 < ret || EINTR == errno || ERESTART == errno)
+		 && buflen > len);
+
+	return len;
 }
 
-#elif JENT
+#elif JENT		/* CPU execution time jitter RNG */
 #include "jitterentropy.h"
 
 struct seed_source {
@@ -280,9 +289,55 @@ static void drng_seedsource_dealloc(struct seed_source *source)
 	source->ec = NULL;
 }
 
-static int drng_get_seed(struct seed_source *source, void *buf, size_t buflen)
+static int drng_get_seed(struct seed_source *source, uint8_t *buf,
+			 uint32_t buflen)
 {
-	return jent_read_entropy(source->ec, buf, buflen);
+	return jent_read_entropy(source->ec, (char *)buf, buflen);
+}
+
+#elif DEVRANDOM		/* Reading of /dev/random */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <limits.h>
+
+struct seed_source {
+#define OVERSAMPLINGRATE 1
+	int fd;
+};
+
+static int drng_get_seed(struct seed_source *source, uint8_t *buf,
+			 uint32_t buflen)
+{
+	uint32_t len = 0;
+	ssize_t ret;
+
+	if (buflen > INT_MAX)
+		return 0;
+
+	do {
+		ret = read(source->fd, (buf + len), (buflen - len));
+		if (0 < ret)
+			len += ret;
+	} while ((0 < ret || EINTR == errno || ERESTART == errno)
+		 && buflen > len);
+
+	return len;
+}
+
+static int drng_seedsource_alloc(struct seed_source *source)
+{
+	source->fd = open("/dev/random", O_RDONLY|O_CLOEXEC);
+	if (0 > source->fd)
+		return 1;
+
+	return 0;
+}
+
+static void drng_seedsource_dealloc(struct seed_source *source)
+{
+	close(source->fd);
+	source->fd = -1;
 }
 
 #else
@@ -438,51 +493,6 @@ static void drng_chacha20_dealloc(struct chacha20_drng *drng)
 
 /***************************** ChaCha20 DRNG API *****************************/
 
-int drng_chacha20_init(struct chacha20_drng **drng)
-{
-	uint8_t seed[CHACHA20_KEY_SIZE * OVERSAMPLINGRATE];
-	struct chacha20_drng *d;
-	struct chacha20_state *chacha20;
-	int ret = drng_chacha20_alloc(drng);
-
-	if (ret)
-		return ret;
-
-	d = *drng;
-	ret = drng_seedsource_alloc(&d->source);
-	if (ret)
-		goto deallocdrng;
-
-	ret = drng_get_seed(&d->source, seed, sizeof(seed));
-	if (ret != sizeof(seed)) {
-		printf("Unexpected return code of getrandom: %d\n", ret);
-		goto deallocsource;
-	}
-
-	chacha20 = &d->chacha20;
-	ret = drng_chacha20_seed(chacha20, seed, sizeof(seed));
-	memset_secure(seed, 0, sizeof(seed));
-	if (ret)
-		goto deallocsource;
-
-	 get_time(&d->last_seeded, NULL);
-
-	return 0;
-
-deallocsource:
-	drng_seedsource_dealloc(&d->source);
-deallocdrng:
-	drng_chacha20_dealloc(*drng);
-
-	return ret;
-}
-
-void drng_chacha20_destroy(struct chacha20_drng *drng)
-{
-	drng_seedsource_dealloc(&drng->source);
-	drng_chacha20_dealloc(drng);
-}
-
 int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 			 uint32_t inbuflen)
 {
@@ -491,7 +501,7 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 
 	ret = drng_get_seed(&drng->source, seed, sizeof(seed));
 	if (ret != sizeof(seed)) {
-		printf("Unexpected return code of getrandom: %d\n", ret);
+		printf("Unexpected return code from seed source: %d\n", ret);
 		return ret;
 	}
 
@@ -509,6 +519,37 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 	return ret;
 }
 
+int drng_chacha20_init(struct chacha20_drng **drng)
+{
+	int ret = drng_chacha20_alloc(drng);
+
+	if (ret)
+		return ret;
+
+	ret = drng_seedsource_alloc(&(*drng)->source);
+	if (ret)
+		goto deallocdrng;
+
+	ret = drng_chacha20_reseed(*drng, NULL, 0);
+	if (ret)
+		goto deallocsource;
+
+	return 0;
+
+deallocsource:
+	drng_seedsource_dealloc(&(*drng)->source);
+deallocdrng:
+	drng_chacha20_dealloc(*drng);
+
+	return ret;
+}
+
+void drng_chacha20_destroy(struct chacha20_drng *drng)
+{
+	drng_seedsource_dealloc(&drng->source);
+	drng_chacha20_dealloc(drng);
+}
+
 int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 		      uint32_t outbuflen)
 {
@@ -521,12 +562,13 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 	/*
 	 * Reseed if:
 	 *	* last seeding was more than 600 seconds ago
-	 *	* more than 4096 bytes were generated since last reseed
+	 *	* more than 1<<30 bytes were generated since last reseed
 	 */
 	if (((now - drng->last_seeded) > 600) ||
 	    (drng->generated_bytes > (1<<30))) {
-		int ret = drng_chacha20_reseed(drng, (uint8_t *)&nsec,
-					       sizeof(nsec));
+		ret = drng_chacha20_reseed(drng, (uint8_t *)&nsec,
+					   sizeof(nsec));
+printf("reseed\n");
 
 		if (ret)
 			return ret;

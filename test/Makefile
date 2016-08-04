@@ -13,19 +13,15 @@ PREFIX := /usr/local
 # library target directory (either lib or lib64)
 LIBDIR := lib
 
-NAME := chacha20_drng
-LIBMAJOR=$(shell cat chacha20_drng.h | grep define | grep MAJVERSION | awk '{print $$3}')
-LIBMINOR=$(shell cat chacha20_drng.h | grep define | grep MINVERSION | awk '{print $$3}')
-LIBPATCH=$(shell cat chacha20_drng.h | grep define | grep PATCHLEVEL | awk '{print $$3}')
-LIBVERSION := $(LIBMAJOR).$(LIBMINOR).$(LIBPATCH)
-C_SRCS := chacha20_drng.c
+NAME := chacha20_drng_test
+C_SRCS := ../chacha20_drng.c chacha20_drng_test.c
 JENT_OBJS:=
 
 ############################### Jitter RNG Seed Source ########################
 
 CFLAGS += -DJENT
 JENT_CFLAGS := -Wextra -Wall -pedantic -fPIC -O0 -std=gnu99 -fstack-protector-strong -fwrapv --param ssp-buffer-size=4 -fvisibility=hidden
-JENT_SRCS += jitterentropy-base.c
+JENT_SRCS += ../jitterentropy-base.c
 JENT_OBJS += ${JENT_SRCS:.c=.o}
 
 ########################### Linux getrandom Seed Source #######################
@@ -41,7 +37,7 @@ JENT_OBJS += ${JENT_SRCS:.c=.o}
 C_OBJS := ${C_SRCS:.c=.o}
 OBJS := $(C_OBJS) $(JENT_OBJS)
 
-INCLUDE_DIRS :=
+INCLUDE_DIRS := ../
 LIBRARY_DIRS :=
 LIBRARIES :=
 
@@ -49,12 +45,12 @@ CFLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
 LDFLAGS += $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir))
 LDFLAGS += $(foreach library,$(LIBRARIES),-l$(library))
 
-.PHONY: all scan install clean distclean
+.PHONY: all scan clean distclean
 
 all: $(NAME)
 
 $(NAME): $(C_OBJS) $(JENT_OBJS)
-	$(CC) -shared -Wl,-soname,lib$(NAME).so.$(LIBMAJOR) -o lib$(NAME).so.$(LIBVERSION) $(OBJS) $(LDFLAGS)
+	$(CC) $(OBJS) -o $(NAME) $(LDFLAGS)
 
 $(JENT_OBJS):
 	$(CC) $(JENT_SRCS) -c -o $(JENT_OBJS) $(JENT_CFLAGS) $(LDFLAGS)
@@ -62,30 +58,8 @@ $(JENT_OBJS):
 scan:	$(OBJS)
 	scan-build --use-analyzer=/usr/bin/clang $(CC) $(OBJS) -o $(NAME) $(LDFLAGS)
 
-install:
-	install -m 0755 -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/
-	$(RM) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
-	ln -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
-	install -m 0644 chacha20_drng.h $(PREFIX)/include
-
-man:
-	LIBVERSION=$(LIBVERSION) doc/gendocs.sh man
-
-maninstall:
-	install -m 0644 doc/man/* $(PREFIX)/share/man/man3
-
-html:
-	LIBVERSION=$(LIBVERSION) doc/gendocs.sh html
-
-pdf:
-	LIBVERSION=$(LIBVERSION) doc/gendocs.sh pdf
-
-ps:
-	LIBVERSION=$(LIBVERSION) doc/gendocs.sh ps
-
 clean:
-	@- $(RM) $(OBJS) $(NAME)
-	@- $(RM) lib$(NAME).so.$(LIBVERSION)
-	@- doc/gendocs.sh clean
+	@- $(RM) $(NAME)
+	@- $(RM) $(OBJS)
 
 distclean: clean
