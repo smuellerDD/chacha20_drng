@@ -117,8 +117,7 @@ struct chacha20_state {
 /* ChaCha20 block function according to RFC 7539 section 2.3 */
 static void chacha20_block(uint32_t *state, void *stream)
 {
-	uint32_t ws[CHACHA20_BLOCK_SIZE_WORDS], *out = stream;
-	uint32_t i;
+	uint32_t i, ws[CHACHA20_BLOCK_SIZE_WORDS], *out = stream;
 
 	for (i = 0; i < CHACHA20_BLOCK_SIZE_WORDS; i++)
 		ws[i] = state[i];
