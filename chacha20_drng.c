@@ -567,7 +567,6 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 	    (drng->generated_bytes > (1<<30))) {
 		ret = drng_chacha20_reseed(drng, (uint8_t *)&nsec,
 					   sizeof(nsec));
-printf("reseed\n");
 
 		if (ret)
 			return ret;
