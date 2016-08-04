@@ -23,14 +23,18 @@ JENT_OBJS:=
 
 ############################### Jitter RNG Seed Source ########################
 
+ifneq (, $(wildcard jitterentropy-base.c))
 CFLAGS += -DJENT
 JENT_CFLAGS := -Wextra -Wall -pedantic -fPIC -O0 -std=gnu99 -fstack-protector-strong -fwrapv --param ssp-buffer-size=4 -fvisibility=hidden
 JENT_SRCS += jitterentropy-base.c
 JENT_OBJS += ${JENT_SRCS:.c=.o}
 
+else
 ########################### Linux getrandom Seed Source #######################
 
-#CFLAGS += -DGETRANDOM
+CFLAGS += -DGETRANDOM
+
+endif
 
 ########################### /dev/random Seed Source #######################
 
