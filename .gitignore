@@ -1,0 +1,5 @@
+*.swp
+*.swo
+
+*.o
+libchacha20_drng.so.*
