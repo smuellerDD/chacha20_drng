@@ -1,6 +1,8 @@
-Changes 1.0.1
+Changes 1.1.0
  * fix invocation of getrandom syscall
  * remove debug printf
+ * use private name space for version macros
+ * add API calls to obtain version of implementation
 
 Changes 1.0.0
  * Initial version
