@@ -147,9 +147,16 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
  *
  * @buf: [out] buffer to place version string into
  * @buflen: [in] length of buffer
+ *
+ * @buf is filled with a string of the form "chacha20 DRNG X.Y.Z".  Care
+ * should be taken to provide a large enough buffer taking in to account that
+ * X, Y, and/or Z may be multiple characters.
+ *
+ * @return status of snprintf(3).  < 0 on error, otherwise length of written
+ * string.  See snprintf(3) for details on truncation.
  */
 DSO_PUBLIC
-void drng_chacha20_versionstring(char *buf, uint32_t buflen);
+int drng_chacha20_versionstring(char *buf, uint32_t buflen);
 
 /**
  * drng_chacha20_version() - return machine-usable version number of ChaCha20
