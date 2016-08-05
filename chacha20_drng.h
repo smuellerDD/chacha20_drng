@@ -44,15 +44,19 @@ extern "C"
 
 #include <stdint.h>
 
-#define MAJVERSION 1  /* API / ABI incompatible changes, functional changes that
-		       * require consumer to be updated (as long as this number
-		       * is zero, the API is not considered stable and can
-		       * change without a bump of the major version) */
-#define MINVERSION 0  /* API compatible, ABI may change, functional
-		       * enhancements only, consumer can be left unchanged if
-		       * enhancements are not considered */
-#define PATCHLEVEL 0  /* API / ABI compatible, no functional changes, no
-		       * enhancements, bug fixes only */
+#define DRNG_CHACHA20_MAJVERSION 1  /* API / ABI incompatible changes,
+				     * functional changes that require consumer
+				     * to be updated (as long as this number is
+				     * zero, the API is not considered stable
+				     * and can change without a bump of the
+				     * major version). */
+#define DRNG_CHACHA20_MINVERSION 1  /* API compatible, ABI may change,
+				     * functional enhancements only, consumer
+				     * can be left unchanged if enhancements are
+				     * not considered. */
+#define DRNG_CHACHA20_PATCHLEVEL 0  /* API / ABI compatible, no functional
+				     * changes, no enhancements, bug fixes
+				     * only. */
 
 #if __GNUC__ >= 4
 # define DSO_PUBLIC __attribute__ ((visibility ("default")))
@@ -151,6 +155,32 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 DSO_PUBLIC
 int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 			 uint32_t inbuflen);
+
+/**
+ * drng_chacha20_versionstring() - obtain version string of ChaCha20 DRNG
+ *
+ * @buf: [out] buffer to place version string into
+ * @buflen: [in] length of buffer
+ */
+DSO_PUBLIC
+void drng_chacha20_versionstring(char *buf, uint32_t buflen);
+
+/**
+ * drng_chacha20_version() - return machine-usable version number of ChaCha20
+ *			     DRNG
+ *
+ * The function returns a version number that is monotonic increasing
+ * for newer versions. The version numbers are multiples of 100. For example,
+ * version 1.2.3 is converted to 1020300 -- the last two digits are reserved
+ * for future use.
+ *
+ * The result of this function can be used in comparing the version number
+ * in a calling program if version-specific calls need to be make.
+ *
+ * @return Version number of ChaCha20 DRNG
+ */
+DSO_PUBLIC
+uint32_t drng_chacha20_version(void);
 
 #ifdef __cplusplus
 }

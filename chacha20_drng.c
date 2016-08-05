@@ -587,3 +587,20 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 
 	return 0;
 }
+
+void drng_chacha20_versionstring(char *buf, uint32_t buflen)
+{
+	snprintf(buf, buflen, "ChaCha20 DRNG %d.%d.%d",
+		 DRNG_CHACHA20_MAJVERSION, DRNG_CHACHA20_MINVERSION, DRNG_CHACHA20_PATCHLEVEL);
+}
+
+uint32_t drng_chacha20_version(void)
+{
+	uint32_t version = 0;
+
+	version =  DRNG_CHACHA20_MAJVERSION * 1000000;
+	version += DRNG_CHACHA20_MINVERSION * 10000;
+	version += DRNG_CHACHA20_PATCHLEVEL * 100;
+
+	return version;
+}

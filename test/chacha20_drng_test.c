@@ -92,6 +92,11 @@ static int basic_test(void)
 {
 	struct chacha20_drng *drng;
 	uint8_t buf[10];
+	char version[30];
+
+	drng_chacha20_versionstring(version, sizeof(version));
+	printf("Obtained version string: %s\n", version);
+	printf("Obtained version number: %u\n", drng_chacha20_version());
 
 	if (drng_chacha20_init(&drng)) {
 		printf("Allocation failed\n");
