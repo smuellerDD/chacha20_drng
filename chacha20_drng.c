@@ -249,7 +249,7 @@ static int drng_get_seed(struct seed_source *source, uint8_t *buf,
 		return 0;
 
 	do {
-		ret = syscall(__NR_getrandom, buf, buflen, 0);
+		ret = syscall(__NR_getrandom, (buf + len), (buflen - len), 0);
 		if (0 < ret)
 			len += ret;
 	} while ((0 < ret || EINTR == errno || ERESTART == errno)
