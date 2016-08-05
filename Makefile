@@ -14,9 +14,9 @@ PREFIX := /usr/local
 LIBDIR := lib
 
 NAME := chacha20_drng
-LIBMAJOR=$(shell cat chacha20_drng.h | grep define | grep MAJVERSION | awk '{print $$3}')
-LIBMINOR=$(shell cat chacha20_drng.h | grep define | grep MINVERSION | awk '{print $$3}')
-LIBPATCH=$(shell cat chacha20_drng.h | grep define | grep PATCHLEVEL | awk '{print $$3}')
+LIBMAJOR=$(shell grep '^\#define[ \t]*MAJVERSION' chacha20_drng.c | awk '{print $$3}')
+LIBMINOR=$(shell grep '^\#define[ \t]*MINVERSION' chacha20_drng.c | awk '{print $$3}')
+LIBPATCH=$(shell grep '^\#define[ \t]*PATCHLEVEL' chacha20_drng.c | awk '{print $$3}')
 LIBVERSION := $(LIBMAJOR).$(LIBMINOR).$(LIBPATCH)
 C_SRCS := chacha20_drng.c
 JENT_OBJS:=

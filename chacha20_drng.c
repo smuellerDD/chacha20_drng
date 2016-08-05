@@ -46,6 +46,20 @@
 
 #include "chacha20_drng.h"
 
+#define MAJVERSION 1   /* API / ABI incompatible changes,
+			* functional changes that require consumer
+			* to be updated (as long as this number is
+			* zero, the API is not considered stable
+			* and can change without a bump of the
+			* major version). */
+#define MINVERSION 1   /* API compatible, ABI may change,
+			* functional enhancements only, consumer
+			* can be left unchanged if enhancements are
+			* not considered. */
+#define PATCHLEVEL 0   /* API / ABI compatible, no functional
+			* changes, no enhancements, bug fixes
+			* only. */
+
 #define CHACHA20_DRNG_ALIGNMENT	8	/* allow u8 to u32 conversions */
 
 /*********************************** Helper ***********************************/
@@ -591,16 +605,16 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 void drng_chacha20_versionstring(char *buf, uint32_t buflen)
 {
 	snprintf(buf, buflen, "ChaCha20 DRNG %d.%d.%d",
-		 DRNG_CHACHA20_MAJVERSION, DRNG_CHACHA20_MINVERSION, DRNG_CHACHA20_PATCHLEVEL);
+		 MAJVERSION, MINVERSION, PATCHLEVEL);
 }
 
 uint32_t drng_chacha20_version(void)
 {
 	uint32_t version = 0;
 
-	version =  DRNG_CHACHA20_MAJVERSION * 1000000;
-	version += DRNG_CHACHA20_MINVERSION * 10000;
-	version += DRNG_CHACHA20_PATCHLEVEL * 100;
+	version =  MAJVERSION * 1000000;
+	version += MINVERSION * 10000;
+	version += PATCHLEVEL * 100;
 
 	return version;
 }
