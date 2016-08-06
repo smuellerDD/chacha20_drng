@@ -3,3 +3,4 @@
 
 *.o
 libchacha20_drng.so.*
+jitterentropy*
