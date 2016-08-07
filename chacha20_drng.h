@@ -156,7 +156,7 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
  * string.  See snprintf(3) for details on truncation.
  */
 DSO_PUBLIC
-int drng_chacha20_versionstring(char *buf, uint32_t buflen);
+int drng_chacha20_versionstring(char *buf, size_t buflen);
 
 /**
  * drng_chacha20_version() - return machine-usable version number of ChaCha20
