@@ -1,3 +1,8 @@
+Changes 1.2.0
+ * place version macros into the C so that they are private (thanks to Jason Cooper)
+ * add license files (thanks to Jason Cooper)
+ * change drng_chacha20_versionstring to return the snprintf error (thanks to Jason Cooper)
+
 Changes 1.1.0
  * fix invocation of getrandom syscall
  * remove debug printf
