@@ -377,10 +377,10 @@ static inline void drng_chacha20_update(struct chacha20_state *chacha20)
 	uint32_t i, tmp[CHACHA20_BLOCK_SIZE_WORDS];
 
 	chacha20_block(&chacha20->constants[0], tmp);
-	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
+	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++) {
 		chacha20->key.u[i] ^= tmp[i];
-	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
 		chacha20->key.u[i] ^= tmp[i + CHACHA20_KEY_SIZE_WORDS];
+	}
 	memset_secure(tmp, 0, sizeof(tmp));
 
 	/* Deterministic increment of nonce as required in RFC 7539 chapter 4 */

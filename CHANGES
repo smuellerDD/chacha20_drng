@@ -1,3 +1,6 @@
+Changes 1.2.1
+ * make implementation of chacha20_update faster by using one loop
+
 Changes 1.2.0
  * place version macros into the C so that they are private (thanks to Jason Cooper)
  * add license files (thanks to Jason Cooper)
