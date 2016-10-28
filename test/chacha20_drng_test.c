@@ -39,6 +39,9 @@
 #include <stdint.h>
 #include <error.h>
 #include <errno.h>
+#include <time.h>
+#include <string.h>
+#include <limits.h>
 
 #include "chacha20_drng.h"
 
@@ -151,19 +154,181 @@ static int gen_test(void)
 	return 0;
 }
 
+static inline uint64_t cp_ts2u64(struct timespec *ts)
+{
+	uint64_t upper = ts->tv_sec;
+
+	upper = upper << 32;
+	return (upper | ts->tv_nsec);
+}
+
+/*
+ * This is x86 specific to reduce the CPU jitter
+ */
+static inline void cp_cpusetup(void)
+{
+#ifdef __X8664___
+	asm volatile("cpuid"::"a" (0), "c" (0): "memory");
+	asm volatile("cpuid"::"a" (0), "c" (0): "memory");
+	asm volatile("cpuid"::"a" (0), "c" (0): "memory");
+#endif
+}
+
+static inline void cp_get_nstime(struct timespec *ts)
+{
+	clock_gettime(CLOCK_REALTIME, ts);
+}
+
+static inline void cp_start_time(struct timespec *ts)
+{
+	cp_cpusetup();
+	cp_get_nstime(ts);
+}
+
+static inline void cp_end_time(struct timespec *ts)
+{
+	cp_get_nstime(ts);
+}
+
+/*
+ * Convert an integer value into a string value that displays the integer
+ * in either bytes, kB, or MB
+ *
+ * @bytes value to convert -- input
+ * @str already allocated buffer for converted string -- output
+ * @strlen size of str
+ */
+static void cp_bytes2string(uint64_t bytes, char *str, size_t strlen)
+{
+	if (1UL<<30 < bytes) {
+		uint64_t abs = (bytes>>30);
+		uint64_t part = ((bytes - (abs<<30)) / (10000000));
+		snprintf(str, strlen, "%lu.%lu GB", (unsigned long)abs,
+			 (unsigned long)part);
+		return;
+
+	} else if (1UL<<20 < bytes) {
+		uint64_t abs = (bytes>>20);
+		uint64_t part = ((bytes - (abs<<20)) / (10000));
+		snprintf(str, strlen, "%lu.%lu MB", (unsigned long)abs,
+			 (unsigned long)part);
+		return;
+	} else if (1UL<<10 < bytes) {
+		uint64_t abs = (bytes>>10);
+		uint64_t part = ((bytes - (abs<<10)) / (10));
+		snprintf(str, strlen, "%lu.%lu kB", (unsigned long)abs,
+			 (unsigned long)part);
+		return;
+	}
+	snprintf(str, strlen, "%lu B", (unsigned long)bytes);
+	str[strlen] = '\0';
+}
+
+static void cp_print_status(uint64_t rounds, uint64_t tottime,
+			    uint32_t byteperop, int raw)
+{
+	uint64_t processed_bytes = rounds * byteperop;
+	uint64_t totaltime = tottime>>30;
+	uint64_t ops = 0;
+	char *testname = "ChaCha20 DRNG";
+
+	if (!totaltime) {
+		printf("%-35s | untested\n", testname);
+		return;
+	}
+
+	ops = rounds / totaltime;
+
+	if (raw) {
+		printf("%s,%lu,%lu,%lu\n", testname,
+		       (unsigned long)processed_bytes,
+		       (unsigned long)(processed_bytes/totaltime),
+		       (unsigned long)ops);
+	} else {
+		#define VALLEN 10
+		char byteseconds[VALLEN + 1];
+
+		memset(byteseconds, 0, sizeof(byteseconds));
+		cp_bytes2string((processed_bytes / totaltime), byteseconds,
+				(VALLEN + 1));
+		printf("%-35s|%12lu bytes|%*s/s|%lu ops/s\n",
+		       testname, (unsigned long)processed_bytes, VALLEN,
+		       byteseconds, (unsigned long)ops);
+	}
+}
+
+static int time_test(uint64_t chunksize)
+{
+	uint64_t nano = 1;
+	uint64_t testduration;
+	uint64_t totaltime = 0;
+	uint64_t rounds = 0;
+	unsigned int i = 0;
+	struct chacha20_drng *drng;
+	uint8_t *tmp;
+
+	tmp = malloc(chunksize);
+	if (!tmp) {
+		printf("Allocation of memory failed\n");
+		return 1;
+	}
+
+	if (drng_chacha20_init(&drng)) {
+		printf("Allocation of DRNG failed\n");
+		free(tmp);
+		return 1;
+	}
+
+	nano = nano << 32;
+	testduration = nano * 10;
+
+	/* prime the test */
+	for (i = 0; i < 10; i++)
+		drng_chacha20_get(drng, tmp, chunksize);
+
+	while (totaltime < testduration) {
+		struct timespec start;
+		struct timespec end;
+
+		cp_get_nstime(&start);
+		drng_chacha20_get(drng, tmp, chunksize);
+		cp_get_nstime(&end);
+		totaltime += (cp_ts2u64(&end) - cp_ts2u64(&start));
+		rounds++;
+	}
+
+	drng_chacha20_destroy(drng);
+	free(tmp);
+
+	cp_print_status(rounds, totaltime, chunksize, 0);
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
-	(void)argc;
-	(void)argv;
-
 	if (argc == 1) {
 		if (basic_test()) {
 			printf("Basic test failed\n");
 			return 1;
 		}
-	} else {
+		printf("Basic test passed\n");
+	} else if (!strncmp(argv[1], "-g", 2)) {
 		gen_test();
+	} else if (!strncmp(argv[1], "-t", 2)) {
+		unsigned long chunksize = 32;
+
+		if (argc == 3) {
+			chunksize = strtoul(argv[2], NULL, 10);
+			if (chunksize == ULONG_MAX && errno == ERANGE) {
+				printf("strtoul conversion failed\n");
+				return 1;
+			}
+		}
+		time_test(chunksize);
+	} else {
+		printf("Unknown test\n");
 	}
 
-	printf("All tests passed\n");
+	return 0;
 }
