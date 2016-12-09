@@ -56,7 +56,7 @@
 			* functional enhancements only, consumer
 			* can be left unchanged if enhancements are
 			* not considered. */
-#define PATCHLEVEL 0   /* API / ABI compatible, no functional
+#define PATCHLEVEL 1   /* API / ABI compatible, no functional
 			* changes, no enhancements, bug fixes
 			* only. */
 
@@ -464,7 +464,7 @@ static int drng_chacha20_generate(struct chacha20_state *chacha20,
 static int drng_chacha20_alloc(struct chacha20_drng **out)
 {
 	struct chacha20_drng *drng;
-	uint32_t v = 0;
+	uint32_t i, v = 0;
 	int ret;
 
 	if (drng_chacha20_selftest()) {
@@ -486,12 +486,16 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 	memset(drng, 0, sizeof(*drng));
 
 	memcpy(&drng->chacha20.constants[0], "expand 32-byte k", 16);
-	get_time(NULL, &v);
-	drng->chacha20.nonce[0] ^= v;
-	get_time(NULL, &v);
-	drng->chacha20.nonce[1] ^= v;
-	get_time(NULL, &v);
-	drng->chacha20.nonce[2] ^= v;
+
+	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++) {
+		get_time(NULL, &v);
+		drng->chacha20.key.u[i] ^= v;
+	}
+
+	for (i = 0; i < 3; i++) {
+		get_time(NULL, &v);
+		drng->chacha20.nonce[i] ^= v;
+	}
 
 	*out = drng;
 
