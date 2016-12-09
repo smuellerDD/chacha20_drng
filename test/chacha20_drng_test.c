@@ -305,6 +305,41 @@ static int time_test(uint64_t chunksize)
 	return 0;
 }
 
+static int generate_bytes(uint32_t bytes, uint32_t blocksize)
+{
+	struct chacha20_drng *drng;
+	unsigned char tmp[4096];
+
+	if (blocksize > sizeof(tmp)) {
+		printf("blocksize %u too large (max %lu)\n", blocksize,
+		       sizeof(tmp));
+		return 1;
+	}
+
+	if (drng_chacha20_init(&drng)) {
+		printf("Allocation of DRNG failed\n");
+		return 1;
+	}
+
+	while (bytes) {
+		uint32_t todo = (bytes > blocksize) ? blocksize : bytes;
+		int ret = drng_chacha20_get(drng, tmp, todo);
+
+		if (ret) {
+			printf("DRNG generation failed (ret: %d)\n", ret);
+			return ret;
+		}
+		fwrite(&tmp, todo, 1, stdout);
+
+		bytes -= todo;
+	}
+
+	drng_chacha20_destroy(drng);
+
+	/* memset_secure(tmp) */
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc == 1) {
@@ -315,6 +350,24 @@ int main(int argc, char *argv[])
 		printf("Basic test passed\n");
 	} else if (!strncmp(argv[1], "-g", 2)) {
 		gen_test();
+	} else if (!strncmp(argv[1], "-o", 2) && (argc == 3 || argc == 4)) {
+		unsigned long bytes = strtoul(argv[2], NULL, 10);
+		unsigned long blocksize = 4096;
+
+		if (argc == 4) {
+			blocksize = strtoul(argv[3], NULL, 10);
+		}
+
+		if (bytes == ULONG_MAX && errno == ERANGE) {
+			printf("strtoul conversion failed\n");
+			return 1;
+		}
+		if (bytes > UINT_MAX || blocksize > UINT_MAX) {
+			printf("requested size too long\n");
+			return 1;
+		}
+
+		return generate_bytes((uint32_t)bytes, (uint32_t)blocksize);
 	} else if (!strncmp(argv[1], "-t", 2)) {
 		unsigned long chunksize = 32;
 
