@@ -1,5 +1,8 @@
 Changes 1.2.1
  * make implementation of chacha20_update faster by using one loop
+ * initialize the ChaCha20 key state with a time stamp
+ * catch return code of mlock
+ * enhance tests
 
 Changes 1.2.0
  * place version macros into the C so that they are private (thanks to Jason Cooper)
