@@ -481,7 +481,9 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 	}
 
 	/* prevent paging out of the memory state to swap space */
-	mlock(drng, sizeof(*drng));
+	ret = mlock(drng, sizeof(*drng));
+	if (ret && errno != EPERM && errno != EAGAIN)
+		return -errno;
 
 	memset(drng, 0, sizeof(*drng));
 
