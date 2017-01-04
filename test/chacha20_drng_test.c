@@ -228,7 +228,7 @@ static void cp_print_status(uint64_t rounds, uint64_t tottime,
 			    uint32_t byteperop, int raw)
 {
 	uint64_t processed_bytes = rounds * byteperop;
-	uint64_t totaltime = tottime>>30;
+	uint64_t totaltime = tottime>>32;
 	uint64_t ops = 0;
 	char *testname = "ChaCha20 DRNG";
 
