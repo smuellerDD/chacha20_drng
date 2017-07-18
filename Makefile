@@ -4,6 +4,7 @@
 
 CC=$(CROSS_COMPILE)gcc
 AR=$(CROSS_COMPILE)ar
+STRIP=$(CROSS_COMPILE)strip
 
 CFLAGS +=-Wextra -Wall -pedantic -fPIC -Os -std=gnu99
 #Hardening
@@ -55,7 +56,7 @@ CFLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir))
 LDFLAGS += $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir))
 LDFLAGS += $(foreach library,$(LIBRARIES),-l$(library))
 
-.PHONY: all scan install clean distclean
+.PHONY: all scan strip install clean distclean
 
 all: $(NAME)
 
@@ -69,11 +70,15 @@ $(JENT_OBJS):
 scan:	$(OBJS)
 	scan-build --use-analyzer=/usr/bin/clang $(CC) $(OBJS) -o $(NAME) $(LDFLAGS)
 
-install:
+strip: $(NAME)
+	$(STRIP) --strip-unneeded lib$(NAME).a
+	$(STRIP) --strip-unneeded lib$(NAME).so.$(LIBVERSION)
+
+install: strip
 	mkdir -p $(PREFIX)/$(LIBDIR)
 	mkdir -p $(PREFIX)/include
 	install -m 0755 lib$(NAME).a $(PREFIX)/$(LIBDIR)/
-	install -m 0755 -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/
+	install -m 0755 lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/
 	$(RM) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
 	ln -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
 	install -m 0644 chacha20_drng.h $(PREFIX)/include
