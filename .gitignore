@@ -2,5 +2,6 @@
 *.swo
 
 *.o
+libchacha20_drng.a
 libchacha20_drng.so.*
 jitterentropy*

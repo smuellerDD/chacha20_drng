@@ -59,6 +59,7 @@ all: $(NAME)
 
 $(NAME): $(C_OBJS) $(JENT_OBJS)
 	$(CC) -shared -Wl,-soname,lib$(NAME).so.$(LIBMAJOR) -o lib$(NAME).so.$(LIBVERSION) $(OBJS) $(LDFLAGS)
+	$(AR) -rcs lib$(NAME).a $(OBJS)
 
 $(JENT_OBJS):
 	$(CC) $(JENT_SRCS) -c -o $(JENT_OBJS) $(JENT_CFLAGS) $(LDFLAGS)
@@ -69,6 +70,7 @@ scan:	$(OBJS)
 install:
 	mkdir -p $(PREFIX)/$(LIBDIR)
 	mkdir -p $(PREFIX)/include
+	install -m 0755 lib$(NAME).a $(PREFIX)/$(LIBDIR)/
 	install -m 0755 -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/
 	$(RM) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
 	ln -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
@@ -91,6 +93,7 @@ ps:
 
 clean:
 	@- $(RM) $(OBJS) $(NAME)
+	@- $(RM) lib$(NAME).a
 	@- $(RM) lib$(NAME).so.$(LIBVERSION)
 	@- doc/gendocs.sh clean
 
