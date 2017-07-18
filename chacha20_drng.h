@@ -42,6 +42,7 @@ extern "C"
 {
 #endif
 
+#include <stddef.h>
 #include <stdint.h>
 
 #if __GNUC__ >= 4
