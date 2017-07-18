@@ -9,7 +9,7 @@ CFLAGS +=-D_FORTIFY_SOURCE=2 -fstack-protector-strong -fwrapv --param ssp-buffer
 LDFLAGS +=-Wl,-z,relro,-z,now
 
 # Change as necessary
-PREFIX := /usr/local
+PREFIX ?= /usr/local
 # library target directory (either lib or lib64)
 LIBDIR := lib
 
@@ -67,6 +67,8 @@ scan:	$(OBJS)
 	scan-build --use-analyzer=/usr/bin/clang $(CC) $(OBJS) -o $(NAME) $(LDFLAGS)
 
 install:
+	mkdir -p $(PREFIX)/$(LIBDIR)
+	mkdir -p $(PREFIX)/include
 	install -m 0755 -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/
 	$(RM) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
 	ln -s lib$(NAME).so.$(LIBVERSION) $(PREFIX)/$(LIBDIR)/lib$(NAME).so.$(LIBMAJOR)
