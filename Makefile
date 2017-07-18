@@ -2,7 +2,9 @@
 # Copyright (C) 2014, Stephan Mueller <smueller@chronox.de>
 #
 
-CC=gcc
+CC=$(CROSS_COMPILE)gcc
+AR=$(CROSS_COMPILE)ar
+
 CFLAGS +=-Wextra -Wall -pedantic -fPIC -Os -std=gnu99
 #Hardening
 CFLAGS +=-D_FORTIFY_SOURCE=2 -fstack-protector-strong -fwrapv --param ssp-buffer-size=4 -fvisibility=hidden
