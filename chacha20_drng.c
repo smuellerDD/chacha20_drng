@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2017, Stephan Mueller <smueller@chronox.de>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -284,10 +284,8 @@ static int drng_seedsource_alloc(struct seed_source *source)
 {
 	int ret = jent_entropy_init();
 
-	if (ret) {
-		printf("The initialization failed with error code %d\n", ret);
+	if (ret)
 		return ret;
-	}
 
 	source->ec = jent_entropy_collector_alloc(0, 0);
 	if (!source->ec)
@@ -468,15 +466,12 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 	int ret;
 
 	if (drng_chacha20_selftest()) {
-		printf("Selftest failed\n");
 		return -EFAULT;
 	}
 
 	ret = posix_memalign((void *)&drng, CHACHA20_DRNG_ALIGNMENT,
 			     sizeof(*drng));
 	if (ret) {
-		printf("Could not allocate buffer for ChaCha20 state: %d\n",
-		       ret);
 		return -ret;
 	}
 
@@ -519,10 +514,8 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 	int ret;
 
 	ret = drng_get_seed(&drng->source, seed, sizeof(seed));
-	if (ret != sizeof(seed)) {
-		printf("Unexpected return code from seed source: %d\n", ret);
+	if (ret != sizeof(seed))
 		return ret;
-	}
 
 	ret = drng_chacha20_seed(&drng->chacha20, seed, sizeof(seed));
 	memset_secure(seed, 0, sizeof(seed));
