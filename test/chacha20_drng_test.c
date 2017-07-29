@@ -247,13 +247,13 @@ static void cp_print_status(uint64_t rounds, uint64_t tottime,
 		       (unsigned long)(processed_bytes/totaltime),
 		       (unsigned long)ops);
 	} else {
-		#define VALLEN 10
+		#define VALLEN 23
 		char byteseconds[VALLEN + 1];
 
 		memset(byteseconds, 0, sizeof(byteseconds));
 		cp_bytes2string((processed_bytes / totaltime), byteseconds,
 				(VALLEN + 1));
-		printf("%-35s|%12lu bytes|%*s/s|%lu ops/s\n",
+		printf("%-20s|%12lu bytes|%*s/s|%lu ops/s\n",
 		       testname, (unsigned long)processed_bytes, VALLEN,
 		       byteseconds, (unsigned long)ops);
 	}
