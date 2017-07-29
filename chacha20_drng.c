@@ -228,36 +228,14 @@ static int drng_chacha20_selftest(void)
 	return drng_chacha20_selftest_one(&chacha20, &expected[0]);
 }
 
-/******************************** Seed Source ********************************/
-
-#ifdef GETRANDOM	/* getrandom system call */
+/********************* getrandom system call seed source *********************/
+#ifdef GETRANDOM
 
 #include <limits.h>
-
-struct seed_source {
-#define OVERSAMPLINGRATE 1
-	void *unused;
-};
-
-static int drng_seedsource_alloc(struct seed_source *source)
-{
-	(void)source;
-	return 0;
-}
-
-static void drng_seedsource_dealloc(struct seed_source *source)
-{
-	(void)source;
-	return;
-}
-
-static int drng_get_seed(struct seed_source *source, uint8_t *buf,
-			 uint32_t buflen)
+static int drng_getrandom_get(uint8_t *buf, uint32_t buflen)
 {
 	uint32_t len = 0;
 	ssize_t ret;
-
-	(void)source;
 
 	if (buflen > INT_MAX)
 		return 0;
@@ -272,62 +250,127 @@ static int drng_get_seed(struct seed_source *source, uint8_t *buf,
 	return len;
 }
 
-#elif JENT		/* CPU execution time jitter RNG */
-#include "jitterentropy.h"
-
-struct seed_source {
-#define OVERSAMPLINGRATE 2
-	struct rand_data *ec;
-};
-
-static int drng_seedsource_alloc(struct seed_source *source)
+#else
+static int drng_getrandom_get(uint8_t *buf, uint32_t buflen)
 {
-	int ret = jent_entropy_init();
-
-	if (ret)
-		return ret;
-
-	source->ec = jent_entropy_collector_alloc(0, 0);
-	if (!source->ec)
-		return 1;
+	(void)buf;
+	(void)buflen;
 
 	return 0;
 }
 
-static void drng_seedsource_dealloc(struct seed_source *source)
+#endif
+
+/*************************** Jitter RNG seed source ***************************/
+#ifdef JENT
+
+#include "jitterentropy.h"
+
+struct jent_noise_source {
+	struct rand_data *ec;
+	int initialized;
+};
+
+static struct jent_noise_source jent_noise_source = {
+	NULL,
+	0,
+};
+
+static int drng_jent_alloc()
 {
-	jent_entropy_collector_free(source->ec);
-	source->ec = NULL;
+	int ret = jent_entropy_init();
+
+	if (ret) {
+		jent_noise_source.initialized = -1;
+		return -EFAULT;
+	}
+
+	jent_noise_source.ec = jent_entropy_collector_alloc(0, 0);
+	if (!jent_noise_source.ec)
+		return -ENOMEM;
+
+	return 0;
 }
 
-static int drng_get_seed(struct seed_source *source, uint8_t *buf,
-			 uint32_t buflen)
+static void drng_jent_dealloc(void)
 {
-	return jent_read_entropy(source->ec, (char *)buf, buflen);
+	if (jent_noise_source.initialized != 1)
+		return;
+
+	jent_entropy_collector_free(jent_noise_source.ec);
+	jent_noise_source.ec = NULL;
+	jent_noise_source.initialized = 0;
 }
 
-#elif DEVRANDOM		/* Reading of /dev/random */
+static int drng_jent_get(uint8_t *buf, uint32_t buflen)
+{
+	if (!jent_noise_source.initialized) {
+		int ret = drng_jent_alloc();
+
+		if (ret)
+			return ret;
+
+		jent_noise_source.initialized = 1;
+	}
+
+	if (jent_noise_source.initialized > 0)
+		return jent_read_entropy(jent_noise_source.ec,
+					 (char *)buf, buflen);
+
+	return 0;
+}
+
+#else
+static int drng_jent_get(uint8_t *buf, uint32_t buflen)
+{
+	(void)buf;
+	(void)buflen;
+
+	return 0;
+}
+
+static void drng_jent_dealloc(void)
+{
+	return;
+}
+#endif
+
+/************************** /dev/random seed source **************************/
+#ifdef DEVRANDOM
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <limits.h>
 
-struct seed_source {
-#define OVERSAMPLINGRATE 1
-	int fd;
-};
+static int random_fd = -1;
 
-static int drng_get_seed(struct seed_source *source, uint8_t *buf,
-			 uint32_t buflen)
+static int drng_random_alloc(void)
+{
+	random_fd = open("/dev/random", O_RDONLY|O_CLOEXEC);
+	if (0 > random_fd)
+		return -EBADFD;
+
+	return 0;
+}
+
+static int drng_random_get(uint8_t *buf, uint32_t buflen)
 {
 	uint32_t len = 0;
 	ssize_t ret;
+
+	if (random_fd == -1) {
+		int ret = drng_random_alloc();
+
+		if (ret)
+			return ret;
+	}
 
 	if (buflen > INT_MAX)
 		return 0;
 
 	do {
-		ret = read(source->fd, (buf + len), (buflen - len));
+		ret = read(random_fd, (buf + len), (buflen - len));
 		if (0 < ret)
 			len += ret;
 	} while ((0 < ret || EINTR == errno || ERESTART == errno)
@@ -336,30 +379,34 @@ static int drng_get_seed(struct seed_source *source, uint8_t *buf,
 	return len;
 }
 
-static int drng_seedsource_alloc(struct seed_source *source)
+static void drng_random_dealloc(void)
 {
-	source->fd = open("/dev/random", O_RDONLY|O_CLOEXEC);
-	if (0 > source->fd)
-		return 1;
+	if (random_fd < 0)
+		return;
+
+	close(random_fd);
+	random_fd = -1;
+}
+
+#else
+static int drng_random_get(uint8_t *buf, uint32_t buflen)
+{
+	(void)buf;
+	(void)buflen;
 
 	return 0;
 }
 
-static void drng_seedsource_dealloc(struct seed_source *source)
+static void drng_random_dealloc(void)
 {
-	close(source->fd);
-	source->fd = -1;
+	return;
 }
-
-#else
-#error "No seed source defined"
 #endif
 
 /******************************* ChaCha20 DRNG *******************************/
 
 struct chacha20_drng {
 	struct chacha20_state chacha20;
-	struct seed_source source;
 	time_t last_seeded;
 	uint64_t generated_bytes;
 };
@@ -634,17 +681,56 @@ err:
 int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 			 uint32_t inbuflen)
 {
-	uint8_t seed[CHACHA20_KEY_SIZE * OVERSAMPLINGRATE];
+	uint8_t seed[CHACHA20_KEY_SIZE * 2];
 	int ret;
+	uint32_t collected = 0;
 
-	ret = drng_get_seed(&drng->source, seed, sizeof(seed));
-	if (ret != sizeof(seed))
+	/* Entropy assumption: 1 data bit delivers one bit of entropy */
+	ret = drng_getrandom_get(seed, CHACHA20_KEY_SIZE);
+	if (ret < 0)
 		return ret;
 
-	ret = drng_chacha20_seed(&drng->chacha20, seed, sizeof(seed));
+	if (ret) {
+		collected = ret;
+
+		ret = drng_chacha20_seed(&drng->chacha20, seed,
+					 CHACHA20_KEY_SIZE);
+		if (ret)
+			return ret;
+	}
+
+	/* Entropy assumption: 2 data bits deliver one bit of entropy */
+	ret = drng_jent_get(seed, sizeof(seed));
+	if (ret < 0)
+		return ret;
+
+	if (ret) {
+		collected += ret;
+
+		ret = drng_chacha20_seed(&drng->chacha20, seed, sizeof(seed));
+		if (ret)
+			return ret;
+	}
+
+	/* Entropy assumption: 1 data bit delivers one bit of entropy */
+	ret = drng_random_get(seed, CHACHA20_KEY_SIZE);
+	if (ret < 0)
+		return ret;
+
+	if (ret) {
+		collected += ret;
+
+		ret = drng_chacha20_seed(&drng->chacha20, seed,
+					 CHACHA20_KEY_SIZE);
+		if (ret)
+			return ret;
+	}
+
 	memset_secure(seed, 0, sizeof(seed));
-	if (ret)
-		return ret;
+
+	/* Internal noise sources must have delivered sufficient information */
+	if (collected < CHACHA20_KEY_SIZE)
+		return -EFAULT;
 
 	if (inbuf && inbuflen)
 		ret = drng_chacha20_seed(&drng->chacha20, inbuf, inbuflen);
@@ -655,6 +741,13 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 	return ret;
 }
 
+void drng_chacha20_destroy(struct chacha20_drng *drng)
+{
+	drng_jent_dealloc();
+	drng_random_dealloc();
+	drng_chacha20_dealloc(drng);
+}
+
 int drng_chacha20_init(struct chacha20_drng **drng)
 {
 	int ret = drng_chacha20_alloc(drng);
@@ -662,34 +755,19 @@ int drng_chacha20_init(struct chacha20_drng **drng)
 	if (ret)
 		return ret;
 
-	ret = drng_seedsource_alloc(&(*drng)->source);
-	if (ret)
-		goto deallocdrng;
-
 	ret = drng_chacha20_reseed(*drng, NULL, 0);
-	if (ret)
-		goto deallocsource;
+	if (ret) {
+		drng_chacha20_destroy(*drng);
+		return ret;
+	}
 
 	return 0;
-
-deallocsource:
-	drng_seedsource_dealloc(&(*drng)->source);
-deallocdrng:
-	drng_chacha20_dealloc(*drng);
-
-	return ret;
-}
-
-void drng_chacha20_destroy(struct chacha20_drng *drng)
-{
-	drng_seedsource_dealloc(&drng->source);
-	drng_chacha20_dealloc(drng);
 }
 
 int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 		      uint32_t outbuflen)
 {
-	time_t now;
+	time_t now = 0;
 	uint32_t nsec;
 	int ret;
 

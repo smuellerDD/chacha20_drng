@@ -11,6 +11,20 @@ Symposium paper: "Software Generation of Practically Strong Random Numbers".
 The following list enumerates the different properties offered with the
 ChaCha20 DRNG.
 
+Seed Sources
+============
+
+The ChaCha20 DRNG code base allows the following seed sources to be used.
+These seed sources are enabled or disabled in the Makefile. If more than one
+seed source is enabled, the seed of all seed sources is concatenated.
+
+* Jitter RNG: If the file jitterentropy-base.c exists in the current directory,
+  the Jitter RNG is used as noise source.
+
+* getrandom system call
+
+* /dev/random device file
+
 Directory Structure
 ===================
 

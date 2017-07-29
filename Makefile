@@ -31,13 +31,11 @@ CFLAGS += -DJENT
 JENT_CFLAGS := -Wextra -Wall -pedantic -fPIC -O0 -std=gnu99 -fstack-protector-strong -fwrapv --param ssp-buffer-size=4 -fvisibility=hidden
 JENT_SRCS += jitterentropy-base.c
 JENT_OBJS += ${JENT_SRCS:.c=.o}
-
-else
+endif
 ########################### Linux getrandom Seed Source #######################
 
 CFLAGS += -DGETRANDOM
 
-endif
 
 ########################### /dev/random Seed Source #######################
 
