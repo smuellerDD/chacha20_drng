@@ -1,3 +1,9 @@
+Changes 1.3.0
+ * Add ChaCha20 DRNG self test
+ * Bug fix drng_chacha20_alloc: if mlock fails, deallocate memory
+ * Update Jitter RNG to version 2.1.0
+ * Support multiple noise sources concurrently
+
 Changes 1.2.2
  * Minor changes to compile on embedded systems (thanks to Jason Cooper)
 
