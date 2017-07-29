@@ -52,11 +52,11 @@
 			* zero, the API is not considered stable
 			* and can change without a bump of the
 			* major version). */
-#define MINVERSION 2   /* API compatible, ABI may change,
+#define MINVERSION 3   /* API compatible, ABI may change,
 			* functional enhancements only, consumer
 			* can be left unchanged if enhancements are
 			* not considered. */
-#define PATCHLEVEL 2   /* API / ABI compatible, no functional
+#define PATCHLEVEL 0   /* API / ABI compatible, no functional
 			* changes, no enhancements, bug fixes
 			* only. */
 
@@ -456,6 +456,125 @@ static int drng_chacha20_generate(struct chacha20_state *chacha20,
 	return 0;
 }
 
+static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
+{
+	int ret;
+	uint8_t outbuf[CHACHA20_KEY_SIZE * 2];
+	uint8_t seed[CHACHA20_KEY_SIZE * 2] = {
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+		0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+		0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+		0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+	};
+
+	/*
+	 * Expected result when ChaCha20 DRNG state is zero:
+	 *	* constants are set to "expand 32-byte k"
+	 *	* remaining state is 0
+	 * and pulling one ChaCha20 DRNG block.
+	 */
+	uint8_t expected_block[CHACHA20_KEY_SIZE] = {
+		0x76, 0xb8, 0xe0, 0xad, 0xa0, 0xf1, 0x3d, 0x90,
+		0x40, 0x5d, 0x6a, 0xe5, 0x53, 0x86, 0xbd, 0x28,
+		0xbd, 0xd2, 0x19, 0xb8, 0xa0, 0x8d, 0xed, 0x1a,
+		0xa8, 0x36, 0xef, 0xcc, 0x8b, 0x77, 0x0d, 0xc7 };
+
+	/*
+	 * Expected result when ChaCha20 DRNG state is zero:
+	 *	* constants are set to "expand 32-byte k"
+	 *	* remaining state is 0
+	 * followed by a reseed with
+	 *	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	 *	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+	 *	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+	 *	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+	 *	0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+	 *	0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+	 *	0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+	 *	0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f
+	 * and pulling two ChaCha20 DRNG blocks.
+	 */
+	uint8_t expected_twoblocks[CHACHA20_KEY_SIZE * 2] = {
+		0x80, 0xd5, 0xb1, 0x4d, 0x70, 0x5d, 0x3c, 0xa2,
+		0x23, 0x43, 0xc2, 0xe2, 0x1a, 0x4b, 0xb7, 0x29,
+		0x88, 0xed, 0x02, 0x4b, 0x4f, 0xa5, 0x52, 0xa9,
+		0xba, 0x92, 0x52, 0xcd, 0xe1, 0x0e, 0xe4, 0x87,
+		0xf9, 0xb1, 0xf6, 0xb9, 0x50, 0x3d, 0x30, 0x76,
+		0xda, 0xf8, 0x30, 0x0b, 0x0b, 0x46, 0x73, 0x6a,
+		0x9d, 0x91, 0xd3, 0xc6, 0xb1, 0xfc, 0xf3, 0x2a,
+		0xe9, 0xa3, 0x4c, 0x65, 0xd1, 0xcc, 0x37, 0x9d };
+
+	/*
+	 * Expected result when ChaCha20 DRNG state is zero:
+	 *	* constants are set to "expand 32-byte k"
+	 *	* remaining state is 0
+	 * followed by a reseed with
+	 *	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	 *	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+	 *	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+	 *	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+	 *	0x20
+	 * and pulling one ChaCha20 DRNG block plus one byte.
+	 */
+	uint8_t expected_block_and_byte[CHACHA20_KEY_SIZE + 1] = {
+		0x0d, 0x7b, 0xa4, 0xec, 0x6c, 0xee, 0x5a, 0x9a,
+		0xc5, 0x6c, 0x5b, 0xa8, 0x91, 0x05, 0x71, 0xc9,
+		0x35, 0xca, 0x45, 0xdb, 0x8f, 0x10, 0xe4, 0x4a,
+		0x3b, 0x53, 0x80, 0x98, 0x82, 0x9a, 0x3b, 0x27,
+		0x5f };
+
+	/* Generate with zero state */
+	ret = drng_chacha20_generate(&drng->chacha20, outbuf,
+				     sizeof(expected_block));
+	if (ret)
+		return ret;
+	if (memcmp(outbuf, expected_block, sizeof(expected_block)))
+		return -EFAULT;
+
+	/* Clear state of DRNG */
+	memset(&drng->chacha20.key.u[0], 0, 48);
+
+	/* Reseed with 2 blocks */
+	ret = drng_chacha20_seed(&drng->chacha20, seed,
+				 sizeof(expected_twoblocks));
+	if (ret)
+		return ret;
+	ret = drng_chacha20_generate(&drng->chacha20, outbuf,
+				     sizeof(expected_twoblocks));
+	if (ret)
+		return ret;
+	if (memcmp(outbuf, expected_twoblocks, sizeof(expected_twoblocks)))
+		return -EFAULT;
+
+	/* Clear state of DRNG */
+	memset(&drng->chacha20.key.u[0], 0, 48);
+
+	/* Reseed with 1 block and one byte */
+	ret = drng_chacha20_seed(&drng->chacha20, seed,
+				 sizeof(expected_block_and_byte));
+	if (ret)
+		return ret;
+	ret = drng_chacha20_generate(&drng->chacha20, outbuf,
+				     sizeof(expected_block_and_byte));
+	if (ret)
+		return ret;
+	if (memcmp(outbuf, expected_block_and_byte,
+		   sizeof(expected_block_and_byte)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static void drng_chacha20_dealloc(struct chacha20_drng *drng)
+{
+	memset_secure(drng, 0, sizeof(*drng));
+	free(drng);
+}
+
 /**
  * Allocation of the DRBG state
  */
@@ -463,7 +582,7 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 {
 	struct chacha20_drng *drng;
 	uint32_t i, v = 0;
-	int ret;
+	int ret = 0;
 
 	if (drng_chacha20_selftest()) {
 		return -EFAULT;
@@ -477,13 +596,20 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 
 	/* prevent paging out of the memory state to swap space */
 	ret = mlock(drng, sizeof(*drng));
-	if (ret && errno != EPERM && errno != EAGAIN)
-		return -errno;
+	if (ret && errno != EPERM && errno != EAGAIN) {
+		ret = -errno;
+		goto err;
+	}
 
 	memset(drng, 0, sizeof(*drng));
 
 	memcpy(&drng->chacha20.constants[0], "expand 32-byte k", 16);
 
+	ret = drng_chacha20_rng_selftest(drng);
+	if (ret)
+		goto err;
+
+	/* Update the state left by the self test */
 	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++) {
 		get_time(NULL, &v);
 		drng->chacha20.key.u[i] ^= v;
@@ -497,12 +623,10 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 	*out = drng;
 
 	return 0;
-}
 
-static void drng_chacha20_dealloc(struct chacha20_drng *drng)
-{
-	memset_secure(drng, 0, sizeof(*drng));
-	free(drng);
+err:
+	drng_chacha20_dealloc(drng);
+	return ret;
 }
 
 /***************************** ChaCha20 DRNG API *****************************/
