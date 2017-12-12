@@ -39,7 +39,7 @@
 			* functional enhancements only, consumer
 			* can be left unchanged if enhancements are
 			* not considered. */
-#define PATCHLEVEL 0   /* API / ABI compatible, no functional
+#define PATCHLEVEL 1   /* API / ABI compatible, no functional
 			* changes, no enhancements, bug fixes
 			* only. */
 
@@ -48,6 +48,7 @@
 /*********************************** Helper ***********************************/
 
 #define min(x, y) ((x < y) ? x : y)
+#define __aligned(x) __attribute__((aligned(x)))
 
 static inline void memset_secure(void *s, int c, uint32_t n)
 {
@@ -112,7 +113,7 @@ struct chacha20_state {
 #define CHACHA20_BLOCK_SIZE_WORDS (CHACHA20_BLOCK_SIZE / sizeof(uint32_t))
 
 /* ChaCha20 block function according to RFC 7539 section 2.3 */
-static void chacha20_block(uint32_t *state, void *stream)
+static void chacha20_block(uint32_t *state, uint32_t *stream)
 {
 	uint32_t i, ws[CHACHA20_BLOCK_SIZE_WORDS], *out = stream;
 
@@ -467,18 +468,27 @@ static int drng_chacha20_seed(struct chacha20_state *chacha20,
 static int drng_chacha20_generate(struct chacha20_state *chacha20,
 				  uint8_t *outbuf, uint32_t outbuflen)
 {
+	uint32_t aligned_buf[(CHACHA20_BLOCK_SIZE / sizeof(uint32_t))];
+
 	while (outbuflen >= CHACHA20_BLOCK_SIZE) {
-		chacha20_block(&chacha20->constants[0], outbuf);
+		if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1)) {
+			chacha20_block(&chacha20->constants[0], aligned_buf);
+			memcpy(outbuf, aligned_buf, CHACHA20_BLOCK_SIZE);
+		} else {
+			chacha20_block(&chacha20->constants[0],
+				       (uint32_t *)outbuf);
+		}
+
 		outbuf += CHACHA20_BLOCK_SIZE;
 		outbuflen -= CHACHA20_BLOCK_SIZE;
 	}
 
 	if (outbuflen) {
-		uint8_t stream[CHACHA20_BLOCK_SIZE];
-
-		chacha20_block(&chacha20->constants[0], stream);
-		memcpy(outbuf, stream, outbuflen);
-		memset_secure(stream, 0, sizeof(stream));
+		chacha20_block(&chacha20->constants[0], aligned_buf);
+		memcpy(outbuf, aligned_buf, outbuflen);
+		memset_secure(aligned_buf, 0, sizeof(aligned_buf));
+	} else if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1)) {
+		memset_secure(aligned_buf, 0, sizeof(aligned_buf));
 	}
 
 	drng_chacha20_update(chacha20);
@@ -489,7 +499,7 @@ static int drng_chacha20_generate(struct chacha20_state *chacha20,
 static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 {
 	int ret;
-	uint8_t outbuf[CHACHA20_KEY_SIZE * 2];
+	uint8_t outbuf[CHACHA20_KEY_SIZE * 2] __aligned(sizeof(uint32_t));
 	uint8_t seed[CHACHA20_KEY_SIZE * 2] = {
 		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
