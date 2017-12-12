@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2014, Stephan Mueller <smueller@chronox.de>
+# Copyright (C) 2016 - 2017, Stephan Mueller <smueller@chronox.de>
 #
 
 CC=$(CROSS_COMPILE)gcc
