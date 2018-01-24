@@ -28,12 +28,6 @@ extern "C"
 #include <stddef.h>
 #include <stdint.h>
 
-#if __GNUC__ >= 4
-# define DSO_PUBLIC __attribute__ ((visibility ("default")))
-#else
-# define DSO_PUBLIC
-#endif
-
 struct chacha20_drng;
 
 /**
@@ -63,7 +57,6 @@ struct chacha20_drng;
  *
  * @return 0 upon success; < 0 on error
  */
-DSO_PUBLIC
 int drng_chacha20_init(struct chacha20_drng **drng);
 
 /**
@@ -77,7 +70,6 @@ int drng_chacha20_init(struct chacha20_drng **drng);
  * Also, the used memory is securely erased.
  *
  */
-DSO_PUBLIC
 void drng_chacha20_destroy(struct chacha20_drng *drng);
 
 /**
@@ -105,7 +97,6 @@ void drng_chacha20_destroy(struct chacha20_drng *drng);
  *
  * @return 0 upon success; < 0 on error
  */
-DSO_PUBLIC
 int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 		      uint32_t outbuflen);
 
@@ -122,7 +113,6 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
  *
  * @return 0 upon succes; < 0 on error
  */
-DSO_PUBLIC
 int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 			 uint32_t inbuflen);
 
@@ -139,7 +129,6 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
  * @return status of snprintf(3).  < 0 on error, otherwise length of written
  * string.  See snprintf(3) for details on truncation.
  */
-DSO_PUBLIC
 int drng_chacha20_versionstring(char *buf, size_t buflen);
 
 /**
@@ -156,7 +145,6 @@ int drng_chacha20_versionstring(char *buf, size_t buflen);
  *
  * @return Version number of ChaCha20 DRNG
  */
-DSO_PUBLIC
 uint32_t drng_chacha20_version(void);
 
 #ifdef __cplusplus

@@ -45,6 +45,12 @@
 
 #define CHACHA20_DRNG_ALIGNMENT	8	/* allow u8 to u32 conversions */
 
+#if __GNUC__ >= 4
+# define DSO_PUBLIC __attribute__ ((visibility ("default")))
+#else
+# define DSO_PUBLIC
+#endif
+
 /*********************************** Helper ***********************************/
 
 #define min(x, y) ((x < y) ? x : y)
@@ -671,6 +677,7 @@ err:
 
 /***************************** ChaCha20 DRNG API *****************************/
 
+DSO_PUBLIC
 int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 			 uint32_t inbuflen)
 {
@@ -734,6 +741,7 @@ int drng_chacha20_reseed(struct chacha20_drng *drng, const uint8_t *inbuf,
 	return ret;
 }
 
+DSO_PUBLIC
 void drng_chacha20_destroy(struct chacha20_drng *drng)
 {
 	drng_jent_dealloc();
@@ -741,6 +749,7 @@ void drng_chacha20_destroy(struct chacha20_drng *drng)
 	drng_chacha20_dealloc(drng);
 }
 
+DSO_PUBLIC
 int drng_chacha20_init(struct chacha20_drng **drng)
 {
 	int ret = drng_chacha20_alloc(drng);
@@ -757,6 +766,7 @@ int drng_chacha20_init(struct chacha20_drng **drng)
 	return 0;
 }
 
+DSO_PUBLIC
 int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 		      uint32_t outbuflen)
 {
@@ -796,12 +806,14 @@ int drng_chacha20_get(struct chacha20_drng *drng, uint8_t *outbuf,
 	return 0;
 }
 
+DSO_PUBLIC
 int drng_chacha20_versionstring(char *buf, size_t buflen)
 {
 	return snprintf(buf, buflen, "ChaCha20 DRNG %d.%d.%d",
 			MAJVERSION, MINVERSION, PATCHLEVEL);
 }
 
+DSO_PUBLIC
 uint32_t drng_chacha20_version(void)
 {
 	uint32_t version = 0;
