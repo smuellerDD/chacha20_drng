@@ -1,6 +1,10 @@
 Changes 1.3.2
  * move DSO_PUBLIC markers to chacha20_drng.c to prevent cluttering a public
    header file with internal markers
+ * drng_chacha20_update now uses only CHACHA20_KEY_SIZE bytes to update the
+   ChaCha20 state key. This allows using yet unused random numbers to
+   significantly speed up random number generation <= 32 bytes -- speed gain
+   up to 30% for 16 bytes random numbers.
 
 Changes 1.3.1
  * Add MIT license

@@ -39,7 +39,7 @@
 			* functional enhancements only, consumer
 			* can be left unchanged if enhancements are
 			* not considered. */
-#define PATCHLEVEL 1   /* API / ABI compatible, no functional
+#define PATCHLEVEL 2   /* API / ABI compatible, no functional
 			* changes, no enhancements, bug fixes
 			* only. */
 
@@ -407,16 +407,20 @@ struct chacha20_drng {
  * the key part of the state. This shall ensure backtracking resistance as well
  * as a proper mix of the ChaCha20 state once the key is injected.
  */
-static inline void drng_chacha20_update(struct chacha20_state *chacha20)
+static inline void drng_chacha20_update(struct chacha20_state *chacha20,
+					uint32_t *buf, uint32_t used_words)
 {
 	uint32_t i, tmp[CHACHA20_BLOCK_SIZE_WORDS];
 
-	chacha20_block(&chacha20->constants[0], tmp);
-	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++) {
-		chacha20->key.u[i] ^= tmp[i];
-		chacha20->key.u[i] ^= tmp[i + CHACHA20_KEY_SIZE_WORDS];
+	if (used_words > CHACHA20_KEY_SIZE_WORDS) {
+		chacha20_block(&chacha20->constants[0], tmp);
+		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
+			chacha20->key.u[i] ^= tmp[i];
+		memset_secure(tmp, 0, sizeof(tmp));
+	} else {
+		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
+			chacha20->key.u[i] ^= buf[i + used_words];
 	}
-	memset_secure(tmp, 0, sizeof(tmp));
 
 	/* Deterministic increment of nonce as required in RFC 7539 chapter 4 */
 	chacha20->nonce[0]++;
@@ -450,7 +454,7 @@ static int drng_chacha20_seed(struct chacha20_state *chacha20,
 			chacha20->key.b[i] ^= inbuf[i];
 
 		/* Break potential dependencies between the inbuf key blocks */
-		drng_chacha20_update(chacha20);
+		drng_chacha20_update(chacha20, NULL, CHACHA20_BLOCK_SIZE_WORDS);
 		inbuf += todo;
 		inbuflen -= todo;
 	}
@@ -475,11 +479,14 @@ static int drng_chacha20_generate(struct chacha20_state *chacha20,
 				  uint8_t *outbuf, uint32_t outbuflen)
 {
 	uint32_t aligned_buf[(CHACHA20_BLOCK_SIZE / sizeof(uint32_t))];
+	uint32_t used = CHACHA20_BLOCK_SIZE_WORDS;
+	int zeroize_buf = 0;
 
 	while (outbuflen >= CHACHA20_BLOCK_SIZE) {
 		if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1)) {
 			chacha20_block(&chacha20->constants[0], aligned_buf);
 			memcpy(outbuf, aligned_buf, CHACHA20_BLOCK_SIZE);
+			zeroize_buf = 1;
 		} else {
 			chacha20_block(&chacha20->constants[0],
 				       (uint32_t *)outbuf);
@@ -492,12 +499,15 @@ static int drng_chacha20_generate(struct chacha20_state *chacha20,
 	if (outbuflen) {
 		chacha20_block(&chacha20->constants[0], aligned_buf);
 		memcpy(outbuf, aligned_buf, outbuflen);
-		memset_secure(aligned_buf, 0, sizeof(aligned_buf));
-	} else if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1)) {
-		memset_secure(aligned_buf, 0, sizeof(aligned_buf));
+		used = ((outbuflen + sizeof(aligned_buf[0]) - 1) /
+			sizeof(aligned_buf[0]));
+		zeroize_buf = 1;
 	}
 
-	drng_chacha20_update(chacha20);
+	drng_chacha20_update(chacha20, aligned_buf, used);
+
+	if (zeroize_buf)
+		memset_secure(aligned_buf, 0, sizeof(aligned_buf));
 
 	return 0;
 }
@@ -545,14 +555,14 @@ static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 	 * and pulling two ChaCha20 DRNG blocks.
 	 */
 	uint8_t expected_twoblocks[CHACHA20_KEY_SIZE * 2] = {
-		0x80, 0xd5, 0xb1, 0x4d, 0x70, 0x5d, 0x3c, 0xa2,
-		0x23, 0x43, 0xc2, 0xe2, 0x1a, 0x4b, 0xb7, 0x29,
-		0x88, 0xed, 0x02, 0x4b, 0x4f, 0xa5, 0x52, 0xa9,
-		0xba, 0x92, 0x52, 0xcd, 0xe1, 0x0e, 0xe4, 0x87,
-		0xf9, 0xb1, 0xf6, 0xb9, 0x50, 0x3d, 0x30, 0x76,
-		0xda, 0xf8, 0x30, 0x0b, 0x0b, 0x46, 0x73, 0x6a,
-		0x9d, 0x91, 0xd3, 0xc6, 0xb1, 0xfc, 0xf3, 0x2a,
-		0xe9, 0xa3, 0x4c, 0x65, 0xd1, 0xcc, 0x37, 0x9d };
+		0xf5, 0xb4, 0xb6, 0x5a, 0xec, 0xcd, 0x5a, 0x65,
+		0x87, 0x56, 0xe3, 0x86, 0x51, 0x54, 0xfc, 0x90,
+		0x56, 0xff, 0x5e, 0xae, 0x58, 0xf2, 0x01, 0x88,
+		0xb1, 0x7e, 0xb8, 0x2e, 0x17, 0x9a, 0x27, 0xe6,
+		0x86, 0xb3, 0xed, 0x33, 0xf7, 0xb9, 0x06, 0x05,
+		0x8a, 0x2d, 0x1a, 0x93, 0xc9, 0x0b, 0x80, 0x04,
+		0x03, 0xaa, 0x60, 0xaf, 0xd5, 0x36, 0x40, 0x11,
+		0x67, 0x89, 0xb1, 0x66, 0xd5, 0x88, 0x62, 0x6d };
 
 	/*
 	 * Expected result when ChaCha20 DRNG state is zero:
@@ -567,11 +577,11 @@ static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 	 * and pulling one ChaCha20 DRNG block plus one byte.
 	 */
 	uint8_t expected_block_and_byte[CHACHA20_KEY_SIZE + 1] = {
-		0x0d, 0x7b, 0xa4, 0xec, 0x6c, 0xee, 0x5a, 0x9a,
-		0xc5, 0x6c, 0x5b, 0xa8, 0x91, 0x05, 0x71, 0xc9,
-		0x35, 0xca, 0x45, 0xdb, 0x8f, 0x10, 0xe4, 0x4a,
-		0x3b, 0x53, 0x80, 0x98, 0x82, 0x9a, 0x3b, 0x27,
-		0x5f };
+		0x3d, 0x13, 0x47, 0x1e, 0x7f, 0x7c, 0x99, 0x33,
+		0xfc, 0x44, 0xa4, 0xdd, 0xf9, 0x3d, 0xe1, 0x9a,
+		0xd4, 0xe8, 0x7a, 0x7d, 0x42, 0xac, 0xd1, 0xcd,
+		0x10, 0x69, 0xe7, 0xbf, 0xd4, 0xfd, 0x69, 0x4b,
+		0xa7 };
 
 	/* Generate with zero state */
 	ret = drng_chacha20_generate(&drng->chacha20, outbuf,
