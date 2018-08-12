@@ -11,6 +11,17 @@ Symposium paper: "Software Generation of Practically Strong Random Numbers".
 The following list enumerates the different properties offered with the
 ChaCha20 DRNG.
 
+Origin
+------
+
+The ChaCha20 DRNG user space implementation was developed to allow an in-depth
+study of the DRNG for its use as part of the
+[Linux Random Number Generator](https://github.com/smuellerDD/lrng).
+
+Both implementations with respect to the pseudo random number generator are
+identical. Naturally, the ChaCha20 DRNG user space includes the ChaCha20
+block operation, self tests and the pulling of data from seed sources.
+
 Seed Sources
 ============
 
