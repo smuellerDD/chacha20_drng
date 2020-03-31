@@ -39,7 +39,7 @@
 			* functional enhancements only, consumer
 			* can be left unchanged if enhancements are
 			* not considered. */
-#define PATCHLEVEL 2   /* API / ABI compatible, no functional
+#define PATCHLEVEL 3   /* API / ABI compatible, no functional
 			* changes, no enhancements, bug fixes
 			* only. */
 
@@ -98,6 +98,17 @@ static inline uint32_t _bswap32(uint32_t x)
 #else
 #error "Endianess not defined"
 #endif
+
+static inline void drng_chacha20_bswap32(uint32_t *ptr, uint32_t words)
+{
+	uint32_t i;
+
+	/* Byte-swap data which is an LE representation */
+	for (i = 0; i < words; i++) {
+		*ptr = le_bswap32(*ptr);
+		ptr++;
+	}
+}
 
 /******************************* ChaCha20 Block *******************************/
 
@@ -214,6 +225,8 @@ static int drng_chacha20_selftest(void)
 	expected[10] = 0x05d7c214; expected[11] = 0xa2028bd9;
 	expected[12] = 0xd19c12b5; expected[13] = 0xb94e16de;
 	expected[14] = 0xe883d0cb; expected[15] = 0x4e3c50a2;
+
+	drng_chacha20_bswap32(expected, CHACHA20_BLOCK_SIZE_WORDS);
 
 	return drng_chacha20_selftest_one(&chacha20, &expected[0]);
 }
@@ -415,11 +428,11 @@ static inline void drng_chacha20_update(struct chacha20_state *chacha20,
 	if (used_words > CHACHA20_KEY_SIZE_WORDS) {
 		chacha20_block(&chacha20->constants[0], tmp);
 		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
-			chacha20->key.u[i] ^= tmp[i];
+			chacha20->key.u[i] ^= le_bswap32(tmp[i]);
 		memset_secure(tmp, 0, sizeof(tmp));
 	} else {
 		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
-			chacha20->key.u[i] ^= buf[i + used_words];
+			chacha20->key.u[i] ^= le_bswap32(buf[i + used_words]);
 	}
 
 	/* Deterministic increment of nonce as required in RFC 7539 chapter 4 */
@@ -533,7 +546,7 @@ static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 	 *	* remaining state is 0
 	 * and pulling one ChaCha20 DRNG block.
 	 */
-	uint8_t expected_block[CHACHA20_KEY_SIZE] = {
+	const uint8_t expected_block[CHACHA20_KEY_SIZE] = {
 		0x76, 0xb8, 0xe0, 0xad, 0xa0, 0xf1, 0x3d, 0x90,
 		0x40, 0x5d, 0x6a, 0xe5, 0x53, 0x86, 0xbd, 0x28,
 		0xbd, 0xd2, 0x19, 0xb8, 0xa0, 0x8d, 0xed, 0x1a,
@@ -554,7 +567,7 @@ static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 	 *	0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f
 	 * and pulling two ChaCha20 DRNG blocks.
 	 */
-	uint8_t expected_twoblocks[CHACHA20_KEY_SIZE * 2] = {
+	const uint8_t expected_twoblocks[CHACHA20_KEY_SIZE * 2] = {
 		0xf5, 0xb4, 0xb6, 0x5a, 0xec, 0xcd, 0x5a, 0x65,
 		0x87, 0x56, 0xe3, 0x86, 0x51, 0x54, 0xfc, 0x90,
 		0x56, 0xff, 0x5e, 0xae, 0x58, 0xf2, 0x01, 0x88,
@@ -574,18 +587,22 @@ static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 	 *	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
 	 *	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
 	 *	0x20
-	 * and pulling one ChaCha20 DRNG block plus one byte.
+	 * and pulling one ChaCha20 DRNG block plus four byte.
 	 */
-	uint8_t expected_block_and_byte[CHACHA20_KEY_SIZE + 1] = {
-		0x3d, 0x13, 0x47, 0x1e, 0x7f, 0x7c, 0x99, 0x33,
-		0xfc, 0x44, 0xa4, 0xdd, 0xf9, 0x3d, 0xe1, 0x9a,
-		0xd4, 0xe8, 0x7a, 0x7d, 0x42, 0xac, 0xd1, 0xcd,
-		0x10, 0x69, 0xe7, 0xbf, 0xd4, 0xfd, 0x69, 0x4b,
-		0xa7 };
+	const uint8_t expected_block_nonaligned[CHACHA20_KEY_SIZE + 4] = {
+		0x9d, 0xdd, 0x4f, 0xbe, 0x97, 0xcd, 0x8e, 0x15,
+		0xb3, 0xc4, 0x1a, 0x17, 0x49, 0x29, 0x32, 0x7c,
+		0xb3, 0x84, 0xa4, 0x9b, 0xa7, 0x14, 0xb3, 0xc1,
+		0x5b, 0x3b, 0xfb, 0xa1, 0xe4, 0x23, 0x42, 0x8e,
+		0x08, 0x1f, 0x53, 0xa2 };
+
+	drng_chacha20_bswap32((uint32_t *)seed,
+			      sizeof(seed) / sizeof(uint32_t));
 
 	/* Generate with zero state */
 	ret = drng_chacha20_generate(&drng->chacha20, outbuf,
 				     sizeof(expected_block));
+
 	if (ret)
 		return ret;
 	if (memcmp(outbuf, expected_block, sizeof(expected_block)))
@@ -611,15 +628,15 @@ static int drng_chacha20_rng_selftest(struct chacha20_drng *drng)
 
 	/* Reseed with 1 block and one byte */
 	ret = drng_chacha20_seed(&drng->chacha20, seed,
-				 sizeof(expected_block_and_byte));
+				 sizeof(expected_block_nonaligned));
 	if (ret)
 		return ret;
 	ret = drng_chacha20_generate(&drng->chacha20, outbuf,
-				     sizeof(expected_block_and_byte));
+				     sizeof(expected_block_nonaligned));
 	if (ret)
 		return ret;
-	if (memcmp(outbuf, expected_block_and_byte,
-		   sizeof(expected_block_and_byte)))
+	if (memcmp(outbuf, expected_block_nonaligned,
+		   sizeof(expected_block_nonaligned)))
 		return -EFAULT;
 
 	return 0;
@@ -659,7 +676,11 @@ static int drng_chacha20_alloc(struct chacha20_drng **out)
 
 	memset(drng, 0, sizeof(*drng));
 
-	memcpy(&drng->chacha20.constants[0], "expand 32-byte k", 16);
+	/* String "expand 32-byte k" */
+	drng->chacha20.constants[0] = 0x61707865;
+	drng->chacha20.constants[1] = 0x3320646e;
+	drng->chacha20.constants[2] = 0x79622d32;
+	drng->chacha20.constants[3] = 0x6b206574;
 
 	ret = drng_chacha20_rng_selftest(drng);
 	if (ret)
