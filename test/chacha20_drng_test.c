@@ -206,7 +206,7 @@ static void cp_bytes2string(uint64_t bytes, char *str, size_t strlen)
 		return;
 	}
 	snprintf(str, strlen, "%lu B", (unsigned long)bytes);
-	str[strlen] = '\0';
+	str[strlen - 1] = '\0';
 }
 
 static void cp_print_status(uint64_t rounds, uint64_t tottime,
